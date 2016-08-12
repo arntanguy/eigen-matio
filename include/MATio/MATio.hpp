@@ -22,6 +22,9 @@
 typedef ComplexSplit mat_complex_split_t;
 #endif
 
+#include <Eigen/Core>
+#include <unsupported/Eigen/CXX11/Tensor>
+
 namespace Eigen {
 
 namespace internal {
@@ -351,6 +354,42 @@ public:
       return -1;
     }
 #undef MATIO_HANDLE_READ_TYPE
+
+    Mat_VarFree(var);
+    return 0;
+  }
+
+  /*
+   * Reads a 3D matrix into a tensor
+   **/
+  int
+  read_mat(const char * matname, Eigen::Tensor<double, 3> & matrix)
+  {
+    std::cout << "Read TENSOR" << std::endl;
+    if (_written)
+      reopen();
+    if (!_file || !matname) {
+      _errstr.clear();
+      _errstr << "MatioFile.read_mat() unable to read file for matrix '" << matname << "'\n";
+      return -1;
+    }
+
+    matvar_t * var = Mat_VarRead(_file, matname);
+    if (NULL == var) {
+      _errstr.clear();
+      _errstr << "read_mat() unable to read matrix '" << matname << "'\n";
+      return -1;
+    }
+
+    std::cout << "Variable read" << std::endl;
+    std::cout << "Rank: " << var->rank << std::endl;
+    std::cout << "type: " << var->data_type << std::endl;
+    // 3D array
+    if(var->rank == 3)
+    {
+      TensorMap< Tensor<double, 3> > tmp((double *)var->data, (long)var->dims[0], (long)var->dims[1], (long)var->dims[2]);
+      matrix = tmp.template cast<double>();
+    }
 
     Mat_VarFree(var);
     return 0;

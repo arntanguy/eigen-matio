@@ -12,12 +12,26 @@
 #include <MATio/MATio.hpp>
 #include <map>
 
-using namespace Eigen;
+#include <unsupported/Eigen/CXX11/Tensor>
 
-struct ReadRealFixture
+using namespace Eigen;
+using namespace std;
+
+template<typename TensorType>
+bool isApprox(const TensorType& t1, const TensorType& t2, const double epsilon = 10e-6)
+{
+  Tensor<double, 0> res = (t1-t2).square().abs().sum();
+  return res(0) < 10e-6;
+}
+
+struct ReadFixture
+{
+  const double epsilon = 10e-6;
+};
+
+struct ReadRealFixture : public ReadFixture
 {
   std::map<std::string, Eigen::MatrixXd> mat;
-  const double epsilon = 10e-6;
   const std::string file = "test.mat";
 
   ReadRealFixture()
@@ -33,7 +47,7 @@ struct ReadRealFixture
   }
 };
 
-struct ReadComplexFixture
+struct ReadComplexFixture : public ReadFixture
 {
   std::map<std::string, Matrix<std::complex<double>, Dynamic, Dynamic>> mat;
   const double epsilon = 10e-6;
@@ -55,6 +69,23 @@ struct ReadComplexFixture
   }
   // c42
 };
+
+struct ReadTensorFixture : public ReadFixture
+{
+  std::map<std::string, Eigen::Tensor<double, 3>> mat;
+  const std::string file = "tensor.mat";
+
+  ReadTensorFixture()
+  {
+    Eigen::Tensor<double, 3> t(2, 2, 2);
+    t.setValues({{{1.,1.},{2.,2.}}, {{3.,3.},{4.,4.}}});
+    std::cout << "Tensor " << t << std::endl;
+    mat["A"] = t;
+  };
+};
+
+
+
 BOOST_AUTO_TEST_CASE(test_read_real)
 {
   std::cout << "Running read test on real matrices" << std::endl;
@@ -88,6 +119,24 @@ BOOST_AUTO_TEST_CASE(test_read_complex)
     file.read_mat(mat.first.c_str(), matrix);
     BOOST_REQUIRE_MESSAGE(matrix.size() == mat.second.size(), "matrix size doesn't match!");
     BOOST_REQUIRE_MESSAGE(matrix.isApprox(mat.second, fix.epsilon), "\nRead:\n" << matrix << "\nExpected:\n"
+                                                                                << mat.second);
+  }
+}
+
+BOOST_AUTO_TEST_CASE(test_read_tensor)
+{
+  ReadTensorFixture fix;
+
+  // Open test.mat
+  Eigen::MatioFile file(fix.file.c_str(), MAT_ACC_RDONLY, false);
+  for (const auto& mat : fix.mat)
+  {
+    Tensor<double, 3> tensor;
+    file.read_mat(mat.first.c_str(), tensor);
+    std::cout << "Read tensor " << tensor << std::endl;
+    BOOST_REQUIRE_MESSAGE(tensor.size() == mat.second.size(), "matrix size doesn't match!");
+    // TODO write isApprox for tensors
+    BOOST_REQUIRE_MESSAGE(isApprox(tensor, mat.second, fix.epsilon), "\nRead:\n" << tensor << "\nExpected:\n"
                                                                                 << mat.second);
   }
 }
